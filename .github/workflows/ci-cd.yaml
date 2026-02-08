@@ -1,0 +1,84 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: setup-a-ci
+  K8S_DEPLOYMENT_NAME: setup-a-ci-deployment
+  K8S_CONTAINER_NAME: setup-a-ci-container
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  docker-build-push:
+    needs: build-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
+
+  deploy:
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    environment: production # Optional: define a production environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Kubeconfig
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_B64 }} # Base64 encoded Kubeconfig
+
+      - name: Apply Kubernetes manifests
+        uses: azure/k8s-deploy@v4
+        with:
+          action: deploy
+          manifests: |
+            .k8s/deployment.yaml
+            .k8s/service.yaml
+          images: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          strategy: basic
+
+      - name: Verify Deployment (Optional)
+        run: |
+          kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT_NAME }}
+          kubectl get service ${{ env.IMAGE_NAME }}-service
