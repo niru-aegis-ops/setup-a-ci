@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  labels:
+    app: backend # Legacy label for broad selection
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/instance: myapp-backend # Unique instance name for the application
+    app.kubernetes.io/component: api # Describes the component (e.g., 'frontend', 'backend', 'database')
+    app.kubernetes.io/part-of: myapp # The overarching application name
+spec:
+  selector:
+    app.kubernetes.io/name: backend # Selects Pods with the label app.kubernetes.io/name: backend
+  ports:
+    - protocol: TCP
+      port: 80 # The port the Service will listen on (e.g., for other services to connect)
+      targetPort: 3000 # The port your Node.js application inside the Pod is listening on
+      name: http # Optional: A name for the port
+  type: ClusterIP # Exposes the Service on an internal IP in the cluster. Default for internal services.

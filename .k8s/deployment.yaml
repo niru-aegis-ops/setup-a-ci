@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-backend-service
+  namespace: myapp-backend
+  labels:
+    app: myapp-backend
+spec:
+  selector:
+    app: myapp-backend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 3000
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-backend-deployment
+  namespace: myapp-backend
+  labels:
+    app: myapp-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp-backend
+  template:
+    metadata:
+      labels:
+        app: myapp-backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: myapp-backend-container
+        image: ghcr.io/myapp/backend:1.0.0 # This image tag will be updated by the CI/CD pipeline
+        ports:
+        - containerPort: 3000
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: DATABASE_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: myapp-backend-config # Ensure this ConfigMap exists
+              key: database_host
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: myapp-backend-secret # Ensure this Secret exists
+              key: api_key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"

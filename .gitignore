@@ -1,0 +1,18 @@
+# Node
+node_modules/
+.env
+*.log
+
+# npm
+npm-debug.log*
+
+# macOS
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
